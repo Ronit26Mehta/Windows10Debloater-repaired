@@ -1,17 +1,28 @@
-Write-Host "Disabling Cortana"
-    $Cortana1 = "HKCU:\SOFTWARE\Microsoft\Personalization\Settings"
-    $Cortana2 = "HKCU:\SOFTWARE\Microsoft\InputPersonalization"
-    $Cortana3 = "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore"
-	If (!(Test-Path $Cortana1)) {
-		New-Item $Cortana1
-	}
-	Set-ItemProperty $Cortana1 AcceptedPrivacyPolicy -Value 0 
-	If (!(Test-Path $Cortana2)) {
-		New-Item $Cortana2
-	}
-	Set-ItemProperty $Cortana2 RestrictImplicitTextCollection -Value 1 
-	Set-ItemProperty $Cortana2 RestrictImplicitInkCollection -Value 1 
-	If (!(Test-Path $Cortana3)) {
-		New-Item $Cortana3
-	}
-	Set-ItemProperty $Cortana3 HarvestContacts -Value 0
+# Disabling Cortana using modern PowerShell practices
+Write-Host "Disabling Cortana" -ForegroundColor Cyan
+
+# Define registry paths and the properties to update
+$registrySettings = @{
+    "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" = @{
+        "AcceptedPrivacyPolicy" = 0
+    }
+    "HKCU:\SOFTWARE\Microsoft\InputPersonalization" = @{
+        "RestrictImplicitTextCollection" = 1
+        "RestrictImplicitInkCollection"  = 1
+    }
+    "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" = @{
+        "HarvestContacts" = 0
+    }
+}
+
+# Iterate through each registry path and its properties
+foreach ($path in $registrySettings.Keys) {
+    if (-not (Test-Path $path)) {
+        New-Item -Path $path -Force | Out-Null
+        Write-Host "Created registry path: $path"
+    }
+    foreach ($property in $registrySettings[$path].Keys) {
+        Set-ItemProperty -Path $path -Name $property -Value $registrySettings[$path][$property] -Force
+        Write-Host "Set '$property' to '$($registrySettings[$path][$property])' in $path"
+    }
+}
