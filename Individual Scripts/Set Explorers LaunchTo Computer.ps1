@@ -1,9 +1,11 @@
-# "This Computer"-Button starts the explorer on the following path:
-# 	LaunchTo	Value	Description
-#				1 		Computer (Harddrives, Network, etc.)
-#				2 		Fast Access
-#				3 		Downloads (The Download-Folder)
+Write-Host "Setting Explorer's Entry Point to 'Computer'" -ForegroundColor Cyan
 
-Write-Host "Set Explorers Entry Point"
-	$LaunchTo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-	Set-ItemProperty $LaunchTo LaunchTo -Value 1
+$LaunchTo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+
+try {
+    Set-ItemProperty -Path $LaunchTo -Name LaunchTo -Value 1 -Force -ErrorAction Stop
+    Write-Host "Explorer's entry point successfully set to 'Computer' (Harddrives, Network, etc.)." -ForegroundColor Green
+}
+catch {
+    Write-Host "Error setting Explorer's entry point: $_" -ForegroundColor Red
+}
