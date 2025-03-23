@@ -1,29 +1,51 @@
-Write-Output "Setting Edge back to default"
-    $NoPDF = "HKCR:\.pdf"
-    $NoProgids = "HKCR:\.pdf\OpenWithProgids"
-    $NoWithList = "HKCR:\.pdf\OpenWithList"
-    #Sets edge back to default
-    If (Get-ItemProperty $NoPDF  NoOpenWith) {
-        Remove-ItemProperty $NoPDF  NoOpenWith
-    } 
-    If (Get-ItemProperty $NoPDF  NoStaticDefaultVerb) {
-        Remove-ItemProperty $NoPDF  NoStaticDefaultVerb 
-    }       
-    If (Get-ItemProperty $NoProgids  NoOpenWith) {
-        Remove-ItemProperty $NoProgids  NoOpenWith 
-    }        
-    If (Get-ItemProperty $NoProgids  NoStaticDefaultVerb) {
-        Remove-ItemProperty $NoProgids  NoStaticDefaultVerb 
-    }        
-    If (Get-ItemProperty $NoWithList  NoOpenWith) {
-        Remove-ItemProperty $NoWithList  NoOpenWith
-    }    
-    If (Get-ItemProperty $NoWithList  NoStaticDefaultVerb) {
-        Remove-ItemProperty $NoWithList  NoStaticDefaultVerb
+Write-Host "Setting Edge back to default" -ForegroundColor Cyan
+
+# Define registry paths with properties to remove
+$registrySettings = @(
+    @{
+        Path = "HKCR:\.pdf"
+        Properties = @("NoOpenWith", "NoStaticDefaultVerb")
+    },
+    @{
+        Path = "HKCR:\.pdf\OpenWithProgids"
+        Properties = @("NoOpenWith", "NoStaticDefaultVerb")
+    },
+    @{
+        Path = "HKCR:\.pdf\OpenWithList"
+        Properties = @("NoOpenWith", "NoStaticDefaultVerb")
     }
-        
-    #Removes an underscore '_' from the Registry key for Edge
-    $Edge2 = "HKCR:\AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723_"
-    If (Test-Path $Edge2) {
-        Set-Item $Edge2 AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723
+)
+
+foreach ($item in $registrySettings) {
+    $path = $item.Path
+    foreach ($prop in $item.Properties) {
+        try {
+            # Check if the property exists by attempting to retrieve it.
+            $propValue = Get-ItemProperty -Path $path -Name $prop -ErrorAction Stop
+            if ($null -ne $propValue) {
+                Remove-ItemProperty -Path $path -Name $prop -Force -ErrorAction Stop
+                Write-Host "Removed property '$prop' from $path" -ForegroundColor Green
+            }
+        }
+        catch {
+            Write-Host "Property '$prop' not found in $path or removal error: $_" -ForegroundColor Yellow
+        }
     }
+}
+
+# Rename the registry key to remove the trailing underscore
+$oldEdgeKey = "HKCR:\AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723_"
+$newEdgeName = "AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723"
+
+if (Test-Path $oldEdgeKey) {
+    try {
+        Rename-Item -Path $oldEdgeKey -NewName $newEdgeName -Force -ErrorAction Stop
+        Write-Host "Renamed key '$oldEdgeKey' to remove underscore" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Error renaming key '$oldEdgeKey': $_" -ForegroundColor Red
+    }
+}
+else {
+    Write-Host "Registry key '$oldEdgeKey' does not exist" -ForegroundColor Yellow
+}
