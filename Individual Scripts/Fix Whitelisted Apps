@@ -1,8 +1,36 @@
-If (!(Get-AppxPackage -AllUsers | Select Microsoft.Paint3D, Microsoft.WindowsCalculator, Microsoft.WindowsStore, Microsoft.Windows.Photos)) {
-    
-        #Credit to abulgatz for these 4 lines of code
-        Get-AppxPackage -allusers Microsoft.Paint3D | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
-        Get-AppxPackage -allusers Microsoft.WindowsCalculator | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
-        Get-AppxPackage -allusers Microsoft.WindowsStore | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
-        Get-AppxPackage -allusers Microsoft.Windows.Photos | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"} 
-    } 
+# Define the list of packages to check and re-register if missing
+$packages = @(
+    "Microsoft.Paint3D",
+    "Microsoft.WindowsCalculator",
+    "Microsoft.WindowsStore",
+    "Microsoft.Windows.Photos"
+)
+
+# Array to hold packages that are missing
+$missingPackages = @()
+
+# Check each package for its existence across all users
+foreach ($pkg in $packages) {
+    if (-not (Get-AppxPackage -AllUsers -Name $pkg -ErrorAction SilentlyContinue)) {
+        $missingPackages += $pkg
+    }
+}
+
+if ($missingPackages.Count -gt 0) {
+    Write-Host "Re-registering missing packages: $($missingPackages -join ', ')" -ForegroundColor Cyan
+    foreach ($pkg in $missingPackages) {
+        try {
+            # Re-register the missing package for all users
+            Get-AppxPackage -AllUsers -Name $pkg | ForEach-Object {
+                Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml" -ErrorAction Stop
+                Write-Host "Successfully re-registered package: $pkg" -ForegroundColor Green
+            }
+        }
+        catch {
+            Write-Host "Error re-registering package $pkg: $_" -ForegroundColor Red
+        }
+    }
+}
+else {
+    Write-Host "All specified packages are already installed." -ForegroundColor Green
+}
