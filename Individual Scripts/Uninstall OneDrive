@@ -1,35 +1,123 @@
-Write-Output "Uninstalling OneDrive. Please wait."
-    
-    New-PSDrive  HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT
-    $onedrive = "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe"
-    $ExplorerReg1 = "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
-    $ExplorerReg2 = "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
-	Stop-Process -Name "OneDrive*"
-	Start-Sleep 2
-	If (!(Test-Path $onedrive)) {
-		$onedrive = "$env:SYSTEMROOT\System32\OneDriveSetup.exe"
-	}
-	Start-Process $onedrive "/uninstall" -NoNewWindow -Wait
-	Start-Sleep 2
-    Write-Output "Stopping explorer"
-    Start-Sleep 1
-	.\taskkill.exe /F /IM explorer.exe
-	Start-Sleep 3
-    Write-Output "Removing leftover files"
-	Remove-Item "$env:USERPROFILE\OneDrive" -Force -Recurse
-	Remove-Item "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse
-	Remove-Item "$env:PROGRAMDATA\Microsoft OneDrive" -Force -Recurse
-	If (Test-Path "$env:SYSTEMDRIVE\OneDriveTemp") {
-		Remove-Item "$env:SYSTEMDRIVE\OneDriveTemp" -Force -Recurse
-	}
-    Write-Output "Removing OneDrive from windows explorer"
-    If (!(Test-Path $ExplorerReg1)) {
-        New-Item $ExplorerReg1
+Write-Host "Uninstalling OneDrive. Please wait." -ForegroundColor Cyan
+
+# Create a temporary PSDrive for HKCR if needed
+try {
+    New-PSDrive -Name HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT -ErrorAction Stop | Out-Null
+    Write-Host "HKCR drive mapped." -ForegroundColor Green
+}
+catch {
+    Write-Host "Error mapping HKCR drive: $_" -ForegroundColor Red
+}
+
+# Determine the correct OneDriveSetup.exe path
+$onedrive = "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe"
+if (-not (Test-Path $onedrive)) {
+    Write-Host "SysWOW64 OneDriveSetup.exe not found. Trying System32..." -ForegroundColor Yellow
+    $onedrive = "$env:SYSTEMROOT\System32\OneDriveSetup.exe"
+}
+if (-not (Test-Path $onedrive)) {
+    Write-Host "OneDriveSetup.exe not found in either SysWOW64 or System32. Exiting." -ForegroundColor Red
+    return
+}
+
+# Stop any running OneDrive processes
+try {
+    Get-Process -Name "OneDrive*" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction Stop
+    Write-Host "Stopped OneDrive processes." -ForegroundColor Green
+}
+catch {
+    Write-Host "No OneDrive processes found, or error stopping them: $_" -ForegroundColor Yellow
+}
+Start-Sleep -Seconds 2
+
+# Uninstall OneDrive
+try {
+    Start-Process -FilePath $onedrive -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction Stop
+    Write-Host "OneDrive uninstallation process completed." -ForegroundColor Green
+}
+catch {
+    Write-Host "Error during OneDrive uninstallation: $_" -ForegroundColor Red
+}
+Start-Sleep -Seconds 2
+
+# Restart Explorer for a clean removal
+Write-Host "Stopping explorer..." -ForegroundColor Cyan
+Start-Sleep -Seconds 1
+try {
+    & .\taskkill.exe /F /IM explorer.exe
+    Write-Host "Explorer stopped." -ForegroundColor Green
+}
+catch {
+    Write-Host "Error stopping explorer: $_" -ForegroundColor Red
+}
+Start-Sleep -Seconds 3
+
+# Remove leftover OneDrive files and folders
+Write-Host "Removing leftover OneDrive files..." -ForegroundColor Cyan
+$pathsToRemove = @(
+    "$env:USERPROFILE\OneDrive",
+    "$env:LOCALAPPDATA\Microsoft\OneDrive",
+    "$env:PROGRAMDATA\Microsoft OneDrive"
+)
+foreach ($path in $pathsToRemove) {
+    if (Test-Path $path) {
+        try {
+            Remove-Item -Path $path -Recurse -Force -ErrorAction Stop
+            Write-Host "Removed $path" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Error removing $path: $_" -ForegroundColor Red
+        }
     }
-    Set-ItemProperty $ExplorerReg1 System.IsPinnedToNameSpaceTree -Value 0 
-    If (!(Test-Path $ExplorerReg2)) {
-        New-Item $ExplorerReg2
+    else {
+        Write-Host "$path not found." -ForegroundColor Yellow
     }
-    Set-ItemProperty $ExplorerReg2 System.IsPinnedToNameSpaceTree -Value 0
-    Write-Output "Restarting Explorer that was shut down before."
-    Start explorer.exe -NoNewWindow
+}
+
+$onedriveTemp = "$env:SYSTEMDRIVE\OneDriveTemp"
+if (Test-Path $onedriveTemp) {
+    try {
+        Remove-Item -Path $onedriveTemp -Recurse -Force -ErrorAction Stop
+        Write-Host "Removed $onedriveTemp" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Error removing $onedriveTemp: $_" -ForegroundColor Red
+    }
+}
+
+# Remove OneDrive from Windows Explorer (Registry keys)
+Write-Host "Removing OneDrive from Windows Explorer integration..." -ForegroundColor Cyan
+
+$ExplorerRegPaths = @(
+    "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}",
+    "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+)
+
+foreach ($regPath in $ExplorerRegPaths) {
+    if (-not (Test-Path $regPath)) {
+        try {
+            New-Item -Path $regPath -Force -ErrorAction Stop | Out-Null
+            Write-Host "Created registry key $regPath" -ForegroundColor Yellow
+        }
+        catch {
+            Write-Host "Error creating registry key $regPath: $_" -ForegroundColor Red
+        }
+    }
+    try {
+        Set-ItemProperty -Path $regPath -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Force -ErrorAction Stop
+        Write-Host "Set 'System.IsPinnedToNameSpaceTree' to 0 in $regPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Error setting property in $regPath: $_" -ForegroundColor Red
+    }
+}
+
+# Restart Explorer
+Write-Host "Restarting Explorer..." -ForegroundColor Cyan
+try {
+    Start-Process -FilePath "explorer.exe" -NoNewWindow -ErrorAction Stop
+    Write-Host "Explorer restarted." -ForegroundColor Green
+}
+catch {
+    Write-Host "Error restarting Explorer: $_" -ForegroundColor Red
+}
