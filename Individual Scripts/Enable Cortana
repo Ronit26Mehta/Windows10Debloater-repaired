@@ -1,17 +1,37 @@
-Write-Host "Re-enabling Cortana"
-    $Cortana1 = "HKCU:\SOFTWARE\Microsoft\Personalization\Settings"
-    $Cortana2 = "HKCU:\SOFTWARE\Microsoft\InputPersonalization"
-    $Cortana3 = "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore"
-	If (!(Test-Path $Cortana1)) {
-		New-Item $Cortana1
-	}
-	Set-ItemProperty $Cortana1 AcceptedPrivacyPolicy -Value 1 
-	If (!(Test-Path $Cortana2)) {
-		New-Item $Cortana2
-	}
-	Set-ItemProperty $Cortana2 RestrictImplicitTextCollection -Value 0 
-	Set-ItemProperty $Cortana2 RestrictImplicitInkCollection -Value 0 
-	If (!(Test-Path $Cortana3)) {
-		New-Item $Cortana3
-	}
-	Set-ItemProperty $Cortana3 HarvestContacts -Value 1 
+Write-Host "Re-enabling Cortana" -ForegroundColor Cyan
+
+# Define registry paths and associated properties for re-enabling Cortana
+$registrySettings = @{
+    "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" = @{
+        "AcceptedPrivacyPolicy" = 1
+    }
+    "HKCU:\SOFTWARE\Microsoft\InputPersonalization" = @{
+        "RestrictImplicitTextCollection" = 0
+        "RestrictImplicitInkCollection"  = 0
+    }
+    "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" = @{
+        "HarvestContacts" = 1
+    }
+}
+
+# Iterate through each registry path and apply the settings
+foreach ($path in $registrySettings.Keys) {
+    if (-not (Test-Path $path)) {
+        try {
+            New-Item -Path $path -Force | Out-Null
+            Write-Host "Created registry path: $path" -ForegroundColor Yellow
+        }
+        catch {
+            Write-Host "Error creating $path: $_" -ForegroundColor Red
+        }
+    }
+    foreach ($property in $registrySettings[$path].Keys) {
+        try {
+            Set-ItemProperty -Path $path -Name $property -Value $registrySettings[$path][$property] -Force
+            Write-Host "Set '$property' to '$($registrySettings[$path][$property])' in $path" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Error setting '$property' in $path: $_" -ForegroundColor Red
+        }
+    }
+}
