@@ -1,134 +1,287 @@
-#Disables Windows Feedback Experience
-    Write-Output "Disabling Windows Feedback Experience program"
-    $Advertising = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
-    If (Test-Path $Advertising) {
-        Set-ItemProperty $Advertising Enabled -Value 0 
+#------------------------------------------------------------
+# Disables Windows Feedback Experience Program
+#------------------------------------------------------------
+Write-Host "Disabling Windows Feedback Experience program" -ForegroundColor Cyan
+$Advertising = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
+if (Test-Path $Advertising) {
+    try {
+        Set-ItemProperty -Path $Advertising -Name Enabled -Value 0 -Force -ErrorAction Stop
+        Write-Host "Feedback Experience disabled." -ForegroundColor Green
     }
-            
-    #Stops Cortana from being used as part of your Windows Search Function
-    Write-Output "Stopping Cortana from being used as part of your Windows Search Function"
-    $Search = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-    If (Test-Path $Search) {
-        Set-ItemProperty $Search AllowCortana -Value 0 
-    }
+    catch { Write-Host "Error disabling Windows Feedback Experience: $_" -ForegroundColor Red }
+}
 
-    #Disables Web Search in Start Menu
-    Write-Output "Disabling Bing Search in Start Menu"
-    $WebSearch = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-    Set-ItemProperty "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" BingSearchEnabled -Value 0 
-	If (!(Test-Path $WebSearch)) {
-        New-Item $WebSearch
-	}
-	Set-ItemProperty $WebSearch DisableWebSearch -Value 1 
-            
-    #Stops the Windows Feedback Experience from sending anonymous data
-    Write-Output "Stopping the Windows Feedback Experience program"
-    $Period = "HKCU:\Software\Microsoft\Siuf\Rules"
-    If (!(Test-Path $Period)) { 
-        New-Item $Period
+#------------------------------------------------------------
+# Stops Cortana from being used as part of Windows Search
+#------------------------------------------------------------
+Write-Host "Stopping Cortana from being used as part of Windows Search" -ForegroundColor Cyan
+$Search = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+if (Test-Path $Search) {
+    try {
+        Set-ItemProperty -Path $Search -Name AllowCortana -Value 0 -Force -ErrorAction Stop
+        Write-Host "Cortana disabled in Windows Search." -ForegroundColor Green
     }
-    Set-ItemProperty $Period PeriodInNanoSeconds -Value 0 
+    catch { Write-Host "Error disabling Cortana in Search: $_" -ForegroundColor Red }
+}
 
-    #Prevents bloatware applications from returning and removes Start Menu suggestions               
-    Write-Output "Adding Registry key to prevent bloatware apps from returning"
-    $registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
-    $registryOEM = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
-    If (!(Test-Path $registryPath)) { 
-        New-Item $registryPath
-    }
-    Set-ItemProperty $registryPath DisableWindowsConsumerFeatures -Value 1 
+#------------------------------------------------------------
+# Disables Web (Bing) Search in Start Menu
+#------------------------------------------------------------
+Write-Host "Disabling Bing Search in Start Menu" -ForegroundColor Cyan
+$SearchUser = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
+try {
+    Set-ItemProperty -Path $SearchUser -Name BingSearchEnabled -Value 0 -Force -ErrorAction Stop
+    Write-Host "Bing Search disabled for current user." -ForegroundColor Green
+}
+catch { Write-Host "Error disabling Bing Search for current user: $_" -ForegroundColor Red }
 
-    If (!(Test-Path $registryOEM)) {
-        New-Item $registryOEM
+$WebSearch = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+if (-not (Test-Path $WebSearch)) {
+    try {
+        New-Item -Path $WebSearch -Force | Out-Null
+        Write-Host "Created registry key: $WebSearch" -ForegroundColor Yellow
     }
-        Set-ItemProperty $registryOEM  ContentDeliveryAllowed -Value 0 
-        Set-ItemProperty $registryOEM  OemPreInstalledAppsEnabled -Value 0 
-        Set-ItemProperty $registryOEM  PreInstalledAppsEnabled -Value 0 
-        Set-ItemProperty $registryOEM  PreInstalledAppsEverEnabled -Value 0 
-        Set-ItemProperty $registryOEM  SilentInstalledAppsEnabled -Value 0 
-        Set-ItemProperty $registryOEM  SystemPaneSuggestionsEnabled -Value 0          
-    
-    #Preping mixed Reality Portal for removal    
-    Write-Output "Setting Mixed Reality Portal value to 0 so that you can uninstall it in Settings"
-    $Holo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Holographic"    
-    If (Test-Path $Holo) {
-        Set-ItemProperty $Holo  FirstRunSucceeded -Value 0 
-    }
+    catch { Write-Host "Error creating $WebSearch: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $WebSearch -Name DisableWebSearch -Value 1 -Force -ErrorAction Stop
+    Write-Host "Web Search in Start Menu disabled." -ForegroundColor Green
+}
+catch { Write-Host "Error disabling Web Search: $_" -ForegroundColor Red }
 
-    #Disables Wi-fi Sense
-    Write-Output "Disabling Wi-Fi Sense"
-    $WifiSense1 = "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting"
-    $WifiSense2 = "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots"
-    $WifiSense3 = "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config"
-    If (!(Test-Path $WifiSense1)) {
-	    New-Item $WifiSense1
+#------------------------------------------------------------
+# Stops Windows Feedback Experience from sending anonymous data
+#------------------------------------------------------------
+Write-Host "Stopping the Windows Feedback Experience data collection" -ForegroundColor Cyan
+$Period = "HKCU:\Software\Microsoft\Siuf\Rules"
+if (-not (Test-Path $Period)) {
+    try {
+        New-Item -Path $Period -Force | Out-Null
+        Write-Host "Created registry key: $Period" -ForegroundColor Yellow
     }
-    Set-ItemProperty $WifiSense1  Value -Value 0 
-	If (!(Test-Path $WifiSense2)) {
-	    New-Item $WifiSense2
-    }
-    Set-ItemProperty $WifiSense2  Value -Value 0 
-	Set-ItemProperty $WifiSense3  AutoConnectAllowedOEM -Value 0 
-        
-    #Disables live tiles
-    Write-Output "Disabling live tiles"
-    $Live = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"    
-    If (!(Test-Path $Live)) {      
-        New-Item $Live
-    }
-    Set-ItemProperty $Live  NoTileApplicationNotification -Value 1 
-        
-    #Turns off Data Collection via the AllowTelemtry key by changing it to 0
-    Write-Output "Turning off Data Collection"
-    $DataCollection1 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection"
-    $DataCollection2 = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
-    $DataCollection3 = "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Policies\DataCollection"    
-    If (Test-Path $DataCollection1) {
-        Set-ItemProperty $DataCollection1  AllowTelemetry -Value 0 
-    }
-    If (Test-Path $DataCollection2) {
-        Set-ItemProperty $DataCollection2  AllowTelemetry -Value 0 
-    }
-    If (Test-Path $DataCollection3) {
-        Set-ItemProperty $DataCollection3  AllowTelemetry -Value 0 
-    }
-    
-    #Disabling Location Tracking
-    Write-Output "Disabling Location Tracking"
-    $SensorState = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}"
-    $LocationConfig = "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration"
-    If (!(Test-Path $SensorState)) {
-        New-Item $SensorState
-    }
-    Set-ItemProperty $SensorState SensorPermissionState -Value 0 
-    If (!(Test-Path $LocationConfig)) {
-        New-Item $LocationConfig
-    }
-    Set-ItemProperty $LocationConfig Status -Value 0 
-        
-    #Disables People icon on Taskbar
-    Write-Output "Disabling People icon on Taskbar"
-    $People = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People"    
-    If (!(Test-Path $People)) {
-        New-Item $People
-    }
-    Set-ItemProperty $People  PeopleBand -Value 0 
-        
-    #Disables scheduled tasks that are considered unnecessary 
-    Write-Output "Disabling scheduled tasks"
-    Get-ScheduledTask  XblGameSaveTaskLogon | Disable-ScheduledTask
-    Get-ScheduledTask  XblGameSaveTask | Disable-ScheduledTask
-    Get-ScheduledTask  Consolidator | Disable-ScheduledTask
-    Get-ScheduledTask  UsbCeip | Disable-ScheduledTask
-    Get-ScheduledTask  DmClient | Disable-ScheduledTask
-    Get-ScheduledTask  DmClientOnScenarioDownload | Disable-ScheduledTask
-    
-    Write-Output "Stopping and disabling WAP Push Service"
-    #Stop and disable WAP Push Service
-	Stop-Service "dmwappushservice"
-	Set-Service "dmwappushservice" -StartupType Disabled
+    catch { Write-Host "Error creating $Period: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $Period -Name PeriodInNanoSeconds -Value 0 -Force -ErrorAction Stop
+    Write-Host "Data collection period set to 0." -ForegroundColor Green
+}
+catch { Write-Host "Error setting PeriodInNanoSeconds: $_" -ForegroundColor Red }
 
-    Write-Output "Stopping and disabling Diagnostics Tracking Service"
-    #Disabling the Diagnostics Tracking Service
-	Stop-Service "DiagTrack"
-	Set-Service "DiagTrack" -StartupType Disabled
+#------------------------------------------------------------
+# Prevents bloatware apps from returning & removes Start Menu suggestions
+#------------------------------------------------------------
+Write-Host "Preventing bloatware apps from returning and disabling Start Menu suggestions" -ForegroundColor Cyan
+$registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+$registryOEM  = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+
+if (-not (Test-Path $registryPath)) {
+    try {
+        New-Item -Path $registryPath -Force | Out-Null
+        Write-Host "Created registry key: $registryPath" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $registryPath: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $registryPath -Name DisableWindowsConsumerFeatures -Value 1 -Force -ErrorAction Stop
+    Write-Host "Windows Consumer Features disabled." -ForegroundColor Green
+}
+catch { Write-Host "Error setting DisableWindowsConsumerFeatures: $_" -ForegroundColor Red }
+
+if (-not (Test-Path $registryOEM)) {
+    try {
+        New-Item -Path $registryOEM -Force | Out-Null
+        Write-Host "Created registry key: $registryOEM" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $registryOEM: $_" -ForegroundColor Red }
+}
+$OEMSettings = @{
+    "ContentDeliveryAllowed"     = 0
+    "OemPreInstalledAppsEnabled"   = 0
+    "PreInstalledAppsEnabled"      = 0
+    "PreInstalledAppsEverEnabled"  = 0
+    "SilentInstalledAppsEnabled"   = 0
+    "SystemPaneSuggestionsEnabled" = 0
+}
+foreach ($prop in $OEMSettings.Keys) {
+    try {
+        Set-ItemProperty -Path $registryOEM -Name $prop -Value $OEMSettings[$prop] -Force -ErrorAction Stop
+        Write-Host "Set $prop to $($OEMSettings[$prop])." -ForegroundColor Green
+    }
+    catch { Write-Host "Error setting $prop: $_" -ForegroundColor Red }
+}
+
+#------------------------------------------------------------
+# Preps Mixed Reality Portal for removal
+#------------------------------------------------------------
+Write-Host "Preparing Mixed Reality Portal for uninstallation" -ForegroundColor Cyan
+$Holo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Holographic"
+if (Test-Path $Holo) {
+    try {
+        Set-ItemProperty -Path $Holo -Name FirstRunSucceeded -Value 0 -Force -ErrorAction Stop
+        Write-Host "Mixed Reality Portal ready for removal." -ForegroundColor Green
+    }
+    catch { Write-Host "Error setting Mixed Reality Portal value: $_" -ForegroundColor Red }
+}
+
+#------------------------------------------------------------
+# Disables Wi-Fi Sense
+#------------------------------------------------------------
+Write-Host "Disabling Wi-Fi Sense" -ForegroundColor Cyan
+$WifiSense1 = "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting"
+$WifiSense2 = "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots"
+$WifiSense3 = "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config"
+
+if (-not (Test-Path $WifiSense1)) {
+    try {
+        New-Item -Path $WifiSense1 -Force | Out-Null
+        Write-Host "Created registry key: $WifiSense1" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $WifiSense1: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $WifiSense1 -Name Value -Value 0 -Force -ErrorAction Stop
+    Write-Host "Disabled WiFi HotSpot Reporting." -ForegroundColor Green
+}
+catch { Write-Host "Error setting property for WiFiSense1: $_" -ForegroundColor Red }
+
+if (-not (Test-Path $WifiSense2)) {
+    try {
+        New-Item -Path $WifiSense2 -Force | Out-Null
+        Write-Host "Created registry key: $WifiSense2" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $WifiSense2: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $WifiSense2 -Name Value -Value 0 -Force -ErrorAction Stop
+    Write-Host "Disabled AutoConnect to WiFi Sense Hotspots." -ForegroundColor Green
+}
+catch { Write-Host "Error setting property for WiFiSense2: $_" -ForegroundColor Red }
+
+try {
+    Set-ItemProperty -Path $WifiSense3 -Name AutoConnectAllowedOEM -Value 0 -Force -ErrorAction Stop
+    Write-Host "Disabled OEM AutoConnect for WiFi Sense." -ForegroundColor Green
+}
+catch { Write-Host "Error setting property for WiFiSense3: $_" -ForegroundColor Red }
+
+#------------------------------------------------------------
+# Disables Live Tiles
+#------------------------------------------------------------
+Write-Host "Disabling live tiles" -ForegroundColor Cyan
+$Live = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"
+if (-not (Test-Path $Live)) {
+    try {
+        New-Item -Path $Live -Force | Out-Null
+        Write-Host "Created registry key: $Live" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $Live: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $Live -Name NoTileApplicationNotification -Value 1 -Force -ErrorAction Stop
+    Write-Host "Live tiles disabled." -ForegroundColor Green
+}
+catch { Write-Host "Error disabling live tiles: $_" -ForegroundColor Red }
+
+#------------------------------------------------------------
+# Turns off Data Collection via the AllowTelemetry key
+#------------------------------------------------------------
+Write-Host "Turning off Data Collection" -ForegroundColor Cyan
+$DataCollections = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection",
+    "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection",
+    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Policies\DataCollection"
+)
+foreach ($path in $DataCollections) {
+    if (Test-Path $path) {
+        try {
+            Set-ItemProperty -Path $path -Name AllowTelemetry -Value 0 -Force -ErrorAction Stop
+            Write-Host "Disabled Data Collection at $path" -ForegroundColor Green
+        }
+        catch { Write-Host "Error disabling Data Collection at $path: $_" -ForegroundColor Red }
+    }
+}
+
+#------------------------------------------------------------
+# Disables Location Tracking
+#------------------------------------------------------------
+Write-Host "Disabling Location Tracking" -ForegroundColor Cyan
+$SensorState   = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}"
+$LocationConfig = "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration"
+
+if (-not (Test-Path $SensorState)) {
+    try {
+        New-Item -Path $SensorState -Force | Out-Null
+        Write-Host "Created registry key: $SensorState" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $SensorState: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $SensorState -Name SensorPermissionState -Value 0 -Force -ErrorAction Stop
+    Write-Host "Location Tracking disabled for sensor state." -ForegroundColor Green
+}
+catch { Write-Host "Error setting SensorPermissionState: $_" -ForegroundColor Red }
+
+if (-not (Test-Path $LocationConfig)) {
+    try {
+        New-Item -Path $LocationConfig -Force | Out-Null
+        Write-Host "Created registry key: $LocationConfig" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $LocationConfig: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $LocationConfig -Name Status -Value 0 -Force -ErrorAction Stop
+    Write-Host "Location service disabled." -ForegroundColor Green
+}
+catch { Write-Host "Error setting LocationConfig Status: $_" -ForegroundColor Red }
+
+#------------------------------------------------------------
+# Disables People Icon on Taskbar
+#------------------------------------------------------------
+Write-Host "Disabling People icon on Taskbar" -ForegroundColor Cyan
+$People = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People"
+if (-not (Test-Path $People)) {
+    try {
+        New-Item -Path $People -Force | Out-Null
+        Write-Host "Created registry key: $People" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $People: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $People -Name PeopleBand -Value 0 -Force -ErrorAction Stop
+    Write-Host "People icon disabled on Taskbar." -ForegroundColor Green
+}
+catch { Write-Host "Error setting PeopleBand: $_" -ForegroundColor Red }
+
+#------------------------------------------------------------
+# Disables Unnecessary Scheduled Tasks
+#------------------------------------------------------------
+Write-Host "Disabling scheduled tasks" -ForegroundColor Cyan
+$tasks = @("XblGameSaveTaskLogon", "XblGameSaveTask", "Consolidator", "UsbCeip", "DmClient", "DmClientOnScenarioDownload")
+foreach ($task in $tasks) {
+    try {
+        Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue | Disable-ScheduledTask -ErrorAction Stop
+        Write-Host "Disabled scheduled task: $task" -ForegroundColor Green
+    }
+    catch { Write-Host "Error disabling scheduled task $task: $_" -ForegroundColor Red }
+}
+
+#------------------------------------------------------------
+# Stops and Disables WAP Push Service
+#------------------------------------------------------------
+Write-Host "Stopping and disabling WAP Push Service" -ForegroundColor Cyan
+try {
+    Stop-Service -Name "dmwappushservice" -Force -ErrorAction Stop
+    Set-Service -Name "dmwappushservice" -StartupType Disabled -ErrorAction Stop
+    Write-Host "WAP Push Service stopped and disabled." -ForegroundColor Green
+}
+catch { Write-Host "Error stopping/disabling WAP Push Service: $_" -ForegroundColor Red }
+
+#------------------------------------------------------------
+# Stops and Disables Diagnostics Tracking Service
+#------------------------------------------------------------
+Write-Host "Stopping and disabling Diagnostics Tracking Service" -ForegroundColor Cyan
+try {
+    Stop-Service -Name "DiagTrack" -Force -ErrorAction Stop
+    Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction Stop
+    Write-Host "Diagnostics Tracking Service stopped and disabled." -ForegroundColor Green
+}
+catch { Write-Host "Error stopping/disabling Diagnostics Tracking Service: $_" -ForegroundColor Red }
