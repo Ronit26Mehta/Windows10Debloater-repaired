@@ -1,6 +1,8 @@
 # https://superuser.com/a/1442733
 #Requires -RunAsAdministrator
 
+Write-Host "Applying custom Start Menu Layout..." -ForegroundColor Cyan
+
 $START_MENU_LAYOUT = @"
 <LayoutModificationTemplate xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" Version="1" xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification">
     <LayoutOptions StartTileGroupCellWidth="6" />
@@ -12,47 +14,98 @@ $START_MENU_LAYOUT = @"
 </LayoutModificationTemplate>
 "@
 
-$layoutFile="C:\Windows\StartMenuLayout.xml"
+$layoutFile = "C:\Windows\StartMenuLayout.xml"
 
-#Delete layout file if it already exists
-If(Test-Path $layoutFile)
-{
-    Remove-Item $layoutFile
+# Delete the layout file if it already exists
+if (Test-Path $layoutFile) {
+    try {
+        Remove-Item -Path $layoutFile -Force -ErrorAction Stop
+        Write-Host "Existing layout file removed: $layoutFile" -ForegroundColor Yellow
+    }
+    catch {
+        Write-Host "Error removing existing layout file: $_" -ForegroundColor Red
+    }
 }
 
-#Creates the blank layout file
-$START_MENU_LAYOUT | Out-File $layoutFile -Encoding ASCII
+# Create the layout file using ASCII encoding
+try {
+    $START_MENU_LAYOUT | Out-File -FilePath $layoutFile -Encoding ASCII -Force
+    Write-Host "Layout file created at: $layoutFile" -ForegroundColor Green
+}
+catch {
+    Write-Host "Error creating layout file: $_" -ForegroundColor Red
+}
 
 $regAliases = @("HKLM", "HKCU")
 
-#Assign the start layout and force it to apply with "LockedStartLayout" at both the machine and user level
-foreach ($regAlias in $regAliases){
-    $basePath = $regAlias + ":\SOFTWARE\Policies\Microsoft\Windows"
-    $keyPath = $basePath + "\Explorer" 
-    IF(!(Test-Path -Path $keyPath)) { 
-        New-Item -Path $basePath -Name "Explorer"
+# Apply the start layout by setting LockedStartLayout and StartLayoutFile in the registry
+foreach ($regAlias in $regAliases) {
+    $basePath = "$regAlias:\SOFTWARE\Policies\Microsoft\Windows"
+    $keyPath = Join-Path $basePath "Explorer"
+    if (-not (Test-Path -Path $keyPath)) {
+        try {
+            New-Item -Path $basePath -Name "Explorer" -Force -ErrorAction Stop | Out-Null
+            Write-Host "Created registry key: $keyPath" -ForegroundColor Yellow
+        }
+        catch {
+            Write-Host "Error creating registry key $keyPath: $_" -ForegroundColor Red
+        }
     }
-    Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 1
-    Set-ItemProperty -Path $keyPath -Name "StartLayoutFile" -Value $layoutFile
+    try {
+        Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 1 -Force -ErrorAction Stop
+        Set-ItemProperty -Path $keyPath -Name "StartLayoutFile" -Value $layoutFile -Force -ErrorAction Stop
+        Write-Host "Applied LockedStartLayout and StartLayoutFile at: $keyPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Error setting registry properties in $keyPath: $_" -ForegroundColor Red
+    }
 }
 
-#Restart Explorer, open the start menu (necessary to load the new layout), and give it a few seconds to process
-Stop-Process -name explorer
-Start-Sleep -s 5
-$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^{ESCAPE}')
-Start-Sleep -s 5
-
-#Enable the ability to pin items again by disabling "LockedStartLayout"
-foreach ($regAlias in $regAliases){
-    $basePath = $regAlias + ":\SOFTWARE\Policies\Microsoft\Windows"
-    $keyPath = $basePath + "\Explorer" 
-    Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 0
+# Restart Explorer to load the new layout
+try {
+    Write-Host "Stopping Explorer..." -ForegroundColor Cyan
+    Stop-Process -Name explorer -Force -ErrorAction Stop
+    Start-Sleep -Seconds 5
+    # Open the Start Menu to force layout load
+    $wshell = New-Object -ComObject wscript.shell
+    $wshell.SendKeys('^{ESCAPE}')
+    Start-Sleep -Seconds 5
+    Write-Host "Explorer has been restarted and the Start Menu opened." -ForegroundColor Green
+}
+catch {
+    Write-Host "Error restarting Explorer: $_" -ForegroundColor Red
 }
 
-#Restart Explorer and delete the layout file
-Stop-Process -name explorer
+# Re-enable the ability to pin items by disabling LockedStartLayout
+foreach ($regAlias in $regAliases) {
+    $basePath = "$regAlias:\SOFTWARE\Policies\Microsoft\Windows"
+    $keyPath = Join-Path $basePath "Explorer"
+    try {
+        Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 0 -Force -ErrorAction Stop
+        Write-Host "Disabled LockedStartLayout at: $keyPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Error disabling LockedStartLayout in $keyPath: $_" -ForegroundColor Red
+    }
+}
 
-# Uncomment the next line to make clean start menu default for all new users
-#Import-StartLayout -LayoutPath $layoutFile -MountPath $env:SystemDrive\
+# Final restart of Explorer and clean-up
+try {
+    Write-Host "Final stopping of Explorer for clean-up..." -ForegroundColor Cyan
+    Stop-Process -Name explorer -Force -ErrorAction Stop
+    Start-Sleep -Seconds 5
+}
+catch {
+    Write-Host "Error stopping Explorer: $_" -ForegroundColor Red
+}
 
-Remove-Item $layoutFile
+# Uncomment the following line if you wish to apply this layout as the default for all new users:
+# Import-StartLayout -LayoutPath $layoutFile -MountPath "$env:SystemDrive\"
+
+try {
+    Remove-Item -Path $layoutFile -Force -ErrorAction Stop
+    Write-Host "Cleaned up layout file: $layoutFile" -ForegroundColor Green
+}
+catch {
+    Write-Host "Error removing layout file: $_" -ForegroundColor Red
+}
