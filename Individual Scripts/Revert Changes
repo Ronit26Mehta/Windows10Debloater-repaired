@@ -1,118 +1,217 @@
-#This function will revert the changes you made when running the Start-Debloat function.
-        
-    #This line reinstalls all of the bloatware that was removed
-    Get-AppxPackage -AllUsers | ForEach {Add-AppxPackage -Verbose -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"} 
-    
-    #Tells Windows to enable your advertising information.    
-    Write-Output "Re-enabling key to show advertisement information"
-    $Advertising = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
-    If (Test-Path $Advertising) {
-        Set-ItemProperty $Advertising  Enabled -Value 1
-    }
-            
-    #Enables Cortana to be used as part of your Windows Search Function
-    Write-Output "Re-enabling Cortana to be used in your Windows Search"
-    $Search = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-    If (Test-Path $Search) {
-        Set-ItemProperty $Search  AllowCortana -Value 1 
-    }
-            
-    #Re-enables the Windows Feedback Experience for sending anonymous data
-    Write-Output "Re-enabling Windows Feedback Experience"
-    $Period = "HKCU:\Software\Microsoft\Siuf\Rules"
-    If (!(Test-Path $Period)) { 
-        New-Item $Period
-    }
-    Set-ItemProperty $Period PeriodInNanoSeconds -Value 1 
-    
-    #Enables bloatware applications               
-    Write-Output "Adding Registry key to allow bloatware apps to return"
-    $registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
-    If (!(Test-Path $registryPath)) {
-        New-Item $registryPath 
-    }
-    Set-ItemProperty $registryPath  DisableWindowsConsumerFeatures -Value 0 
-        
-    #Changes Mixed Reality Portal Key 'FirstRunSucceeded' to 1
-    Write-Output "Setting Mixed Reality Portal value to 1"
-    $Holo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Holographic"
-    If (Test-Path $Holo) {
-        Set-ItemProperty $Holo  FirstRunSucceeded -Value 1 
-    }
-        
-    #Re-enables live tiles
-    Write-Output "Enabling live tiles"
-    $Live = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"
-    If (!(Test-Path $Live)) {
-        New-Item $Live 
-    }
-    Set-ItemProperty $Live  NoTileApplicationNotification -Value 0 
-       
-    #Re-enables data collection
-    Write-Output "Re-enabling data collection"
-    $DataCollection = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection"
-    If (!(Test-Path $DataCollection)) {
-        New-Item $DataCollection
-    }
-    Set-ItemProperty $DataCollection  AllowTelemetry -Value 1
-        
-    #Re-enables People Icon on Taskbar
-    Write-Output "Enabling People icon on Taskbar"
-    $People = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People"
-    If (!(Test-Path $People)) {
-        New-Item $People 
-    }
-    Set-ItemProperty $People  PeopleBand -Value 1 
-    
-    #Re-enables suggestions on start menu
-    Write-Output "Enabling suggestions on the Start Menu"
-    $Suggestions = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
-    If (!(Test-Path $Suggestions)) {
-        New-Item $Suggestions
-    }
-    Set-ItemProperty $Suggestions  SystemPaneSuggestionsEnabled -Value 1 
-        
-    #Re-enables scheduled tasks that were disabled when running the Debloat switch
-    Write-Output "Enabling scheduled tasks that were disabled"
-    Get-ScheduledTask XblGameSaveTaskLogon | Enable-ScheduledTask 
-    Get-ScheduledTask  XblGameSaveTask | Enable-ScheduledTask 
-    Get-ScheduledTask  Consolidator | Enable-ScheduledTask 
-    Get-ScheduledTask  UsbCeip | Enable-ScheduledTask 
-    Get-ScheduledTask  DmClient | Enable-ScheduledTask 
-    Get-ScheduledTask  DmClientOnScenarioDownload | Enable-ScheduledTask 
+#---------------------------------------------------------------------
+# Revert Debloat Changes
+#---------------------------------------------------------------------
 
-    Write-Output "Re-enabling and starting WAP Push Service"
-    #Enable and start WAP Push Service
-	Set-Service "dmwappushservice" -StartupType Automatic
-    Start-Service "dmwappushservice"
-    
-    Write-Output "Re-enabling and starting the Diagnostics Tracking Service"
-    #Enabling the Diagnostics Tracking Service
-	Set-Service "DiagTrack" -StartupType Automatic
-	Start-Service "DiagTrack"
-	
-#	# Re-Enable the showing of last used files and folders (luff)
-#    Write-Output "Re-enabling keys to show last used files and folders"
-#	$luffKeys = @(
-#		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}"
-#		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3936E9E4-D92C-4EEE-A85A-BC16D5EA0819}"
-#	)
-#	ForEach ($luffKey in $luffKeys) {
-#		If (! (Test-Path $lastUsedFiles)) {
-#			Write-Output "Adding $luffKey to registry"
-#			New-Item $luffKey
-#		}
-#    }
-#    Write-Output "Re-enabling explorer to show last used files and folders"
-#	$explorerLastUsed = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
-#	Set-ItemProperty $explorerLastUsed HubMode -Value 0
-#	
-#	# Re-Enable AeroShake
-#	Write-Output "Re-enabling AeroShake"
-#	$aeroShake = "HKCU:\Software\Policies\Microsoft\Windows\Explorer"
-#	Set-ItemProperty $aeroShake NoWindowMinimizingShortcuts -Value 0
-#	
-#	# Re-Locate Explorer LaunchTo
-#	Write-Output "Re-Locate the Explorers Launch To (Entry Point)"
-#	$LaunchTo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-#	Set-ItemProperty $LaunchTo LaunchTo -Value 2
+# Reinstall all removed bloatware for all users
+Write-Host "Reinstalling all removed bloatware packages" -ForegroundColor Cyan
+try {
+    Get-AppxPackage -AllUsers | ForEach-Object {
+        Add-AppxPackage -Verbose -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml" -ErrorAction Stop
+    }
+    Write-Host "Bloatware packages reinstalled." -ForegroundColor Green
+}
+catch {
+    Write-Host "Error reinstalling bloatware packages: $_" -ForegroundColor Red
+}
+
+# Re-enable advertising information
+Write-Host "Re-enabling advertisement information" -ForegroundColor Cyan
+$Advertising = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
+if (Test-Path $Advertising) {
+    try {
+        Set-ItemProperty -Path $Advertising -Name Enabled -Value 1 -Force -ErrorAction Stop
+        Write-Host "Advertisement information re-enabled." -ForegroundColor Green
+    }
+    catch { Write-Host "Error re-enabling advertisement information: $_" -ForegroundColor Red }
+}
+
+# Re-enable Cortana in Windows Search
+Write-Host "Re-enabling Cortana in Windows Search" -ForegroundColor Cyan
+$Search = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+if (Test-Path $Search) {
+    try {
+        Set-ItemProperty -Path $Search -Name AllowCortana -Value 1 -Force -ErrorAction Stop
+        Write-Host "Cortana enabled in Windows Search." -ForegroundColor Green
+    }
+    catch { Write-Host "Error re-enabling Cortana: $_" -ForegroundColor Red }
+}
+
+# Re-enable Windows Feedback Experience for sending anonymous data
+Write-Host "Re-enabling Windows Feedback Experience" -ForegroundColor Cyan
+$Period = "HKCU:\Software\Microsoft\Siuf\Rules"
+if (-not (Test-Path $Period)) {
+    try {
+        New-Item -Path $Period -Force | Out-Null
+        Write-Host "Created registry key: $Period" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $Period: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $Period -Name PeriodInNanoSeconds -Value 1 -Force -ErrorAction Stop
+    Write-Host "Windows Feedback Experience re-enabled." -ForegroundColor Green
+}
+catch { Write-Host "Error setting PeriodInNanoSeconds: $_" -ForegroundColor Red }
+
+# Allow bloatware apps to return and re-enable Start Menu suggestions
+Write-Host "Allowing bloatware apps to return" -ForegroundColor Cyan
+$registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+if (-not (Test-Path $registryPath)) {
+    try {
+        New-Item -Path $registryPath -Force | Out-Null
+        Write-Host "Created registry key: $registryPath" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $registryPath: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $registryPath -Name DisableWindowsConsumerFeatures -Value 0 -Force -ErrorAction Stop
+    Write-Host "Bloatware apps allowed to return." -ForegroundColor Green
+}
+catch { Write-Host "Error setting DisableWindowsConsumerFeatures: $_" -ForegroundColor Red }
+
+# Re-enable Mixed Reality Portal by setting FirstRunSucceeded to 1
+Write-Host "Setting Mixed Reality Portal value to 1" -ForegroundColor Cyan
+$Holo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Holographic"
+if (Test-Path $Holo) {
+    try {
+        Set-ItemProperty -Path $Holo -Name FirstRunSucceeded -Value 1 -Force -ErrorAction Stop
+        Write-Host "Mixed Reality Portal value set to 1." -ForegroundColor Green
+    }
+    catch { Write-Host "Error setting Mixed Reality Portal value: $_" -ForegroundColor Red }
+}
+
+# Re-enable live tiles
+Write-Host "Enabling live tiles" -ForegroundColor Cyan
+$Live = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"
+if (-not (Test-Path $Live)) {
+    try {
+        New-Item -Path $Live -Force | Out-Null
+        Write-Host "Created registry key: $Live" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $Live: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $Live -Name NoTileApplicationNotification -Value 0 -Force -ErrorAction Stop
+    Write-Host "Live tiles re-enabled." -ForegroundColor Green
+}
+catch { Write-Host "Error re-enabling live tiles: $_" -ForegroundColor Red }
+
+# Re-enable data collection
+Write-Host "Re-enabling data collection" -ForegroundColor Cyan
+$DataCollection = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection"
+if (-not (Test-Path $DataCollection)) {
+    try {
+        New-Item -Path $DataCollection -Force | Out-Null
+        Write-Host "Created registry key: $DataCollection" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $DataCollection: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $DataCollection -Name AllowTelemetry -Value 1 -Force -ErrorAction Stop
+    Write-Host "Data collection re-enabled." -ForegroundColor Green
+}
+catch { Write-Host "Error re-enabling data collection: $_" -ForegroundColor Red }
+
+# Re-enable People icon on Taskbar
+Write-Host "Enabling People icon on Taskbar" -ForegroundColor Cyan
+$People = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People"
+if (-not (Test-Path $People)) {
+    try {
+        New-Item -Path $People -Force | Out-Null
+        Write-Host "Created registry key: $People" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $People: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $People -Name PeopleBand -Value 1 -Force -ErrorAction Stop
+    Write-Host "People icon re-enabled." -ForegroundColor Green
+}
+catch { Write-Host "Error enabling People icon: $_" -ForegroundColor Red }
+
+# Re-enable suggestions on the Start Menu
+Write-Host "Enabling suggestions on the Start Menu" -ForegroundColor Cyan
+$Suggestions = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+if (-not (Test-Path $Suggestions)) {
+    try {
+        New-Item -Path $Suggestions -Force | Out-Null
+        Write-Host "Created registry key: $Suggestions" -ForegroundColor Yellow
+    }
+    catch { Write-Host "Error creating $Suggestions: $_" -ForegroundColor Red }
+}
+try {
+    Set-ItemProperty -Path $Suggestions -Name SystemPaneSuggestionsEnabled -Value 1 -Force -ErrorAction Stop
+    Write-Host "Start Menu suggestions re-enabled." -ForegroundColor Green
+}
+catch { Write-Host "Error enabling Start Menu suggestions: $_" -ForegroundColor Red }
+
+# Re-enable scheduled tasks that were disabled
+Write-Host "Enabling scheduled tasks that were disabled" -ForegroundColor Cyan
+$tasks = @("XblGameSaveTaskLogon", "XblGameSaveTask", "Consolidator", "UsbCeip", "DmClient", "DmClientOnScenarioDownload")
+foreach ($task in $tasks) {
+    try {
+        Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue | Enable-ScheduledTask -ErrorAction Stop
+        Write-Host "Scheduled task '$task' enabled." -ForegroundColor Green
+    }
+    catch { Write-Host "Error enabling scheduled task '$task': $_" -ForegroundColor Red }
+}
+
+# Re-enable and start WAP Push Service
+Write-Host "Re-enabling and starting WAP Push Service" -ForegroundColor Cyan
+try {
+    Set-Service -Name "dmwappushservice" -StartupType Automatic -ErrorAction Stop
+    Start-Service -Name "dmwappushservice" -ErrorAction Stop
+    Write-Host "WAP Push Service re-enabled and started." -ForegroundColor Green
+}
+catch { Write-Host "Error re-enabling WAP Push Service: $_" -ForegroundColor Red }
+
+# Re-enable and start Diagnostics Tracking Service
+Write-Host "Re-enabling and starting Diagnostics Tracking Service" -ForegroundColor Cyan
+try {
+    Set-Service -Name "DiagTrack" -StartupType Automatic -ErrorAction Stop
+    Start-Service -Name "DiagTrack" -ErrorAction Stop
+    Write-Host "Diagnostics Tracking Service re-enabled and started." -ForegroundColor Green
+}
+catch { Write-Host "Error re-enabling Diagnostics Tracking Service: $_" -ForegroundColor Red }
+
+#---------------------------------------------------------------------
+# Optional: Uncomment the following block if you wish to restore additional Explorer settings.
+<# 
+# Re-enable showing of last used files and folders
+Write-Host "Re-enabling last used files and folders" -ForegroundColor Cyan
+$luffKeys = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}",
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3936E9E4-D92C-4EEE-A85A-BC16D5EA0819}"
+)
+foreach ($luffKey in $luffKeys) {
+    if (-not (Test-Path $luffKey)) {
+        try {
+            New-Item -Path $luffKey -Force | Out-Null
+            Write-Host "Created key: $luffKey" -ForegroundColor Yellow
+        }
+        catch { Write-Host "Error creating $luffKey: $_" -ForegroundColor Red }
+    }
+}
+$explorerLastUsed = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
+try {
+    Set-ItemProperty -Path $explorerLastUsed -Name HubMode -Value 0 -Force -ErrorAction Stop
+    Write-Host "Explorer set to show last used files and folders." -ForegroundColor Green
+}
+catch { Write-Host "Error setting Explorer last used files and folders: $_" -ForegroundColor Red }
+
+# Re-enable AeroShake
+Write-Host "Re-enabling AeroShake" -ForegroundColor Cyan
+$aeroShake = "HKCU:\Software\Policies\Microsoft\Windows\Explorer"
+try {
+    Set-ItemProperty -Path $aeroShake -Name NoWindowMinimizingShortcuts -Value 0 -Force -ErrorAction Stop
+    Write-Host "AeroShake re-enabled." -ForegroundColor Green
+}
+catch { Write-Host "Error re-enabling AeroShake: $_" -ForegroundColor Red }
+
+# Re-locate Explorer LaunchTo entry point
+Write-Host "Restoring Explorer LaunchTo setting" -ForegroundColor Cyan
+$LaunchTo = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+try {
+    Set-ItemProperty -Path $LaunchTo -Name LaunchTo -Value 2 -Force -ErrorAction Stop
+    Write-Host "Explorer LaunchTo setting restored." -ForegroundColor Green
+}
+catch { Write-Host "Error restoring Explorer LaunchTo setting: $_" -ForegroundColor Red }
+#>
