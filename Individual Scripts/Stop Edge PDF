@@ -1,29 +1,55 @@
-#Stops edge from taking over as the default .PDF viewer    
-    Write-Output "Stopping Edge from taking over as the default .PDF viewer"
-    $NoPDF = "HKCR:\.pdf"
-    $NoProgids = "HKCR:\.pdf\OpenWithProgids"
-    $NoWithList = "HKCR:\.pdf\OpenWithList" 
-    If (!(Get-ItemProperty $NoPDF  NoOpenWith)) {
-        New-ItemProperty $NoPDF NoOpenWith 
-    }        
-    If (!(Get-ItemProperty $NoPDF  NoStaticDefaultVerb)) {
-        New-ItemProperty $NoPDF  NoStaticDefaultVerb 
-    }        
-    If (!(Get-ItemProperty $NoProgids  NoOpenWith)) {
-        New-ItemProperty $NoProgids  NoOpenWith 
-    }        
-    If (!(Get-ItemProperty $NoProgids  NoStaticDefaultVerb)) {
-        New-ItemProperty $NoProgids  NoStaticDefaultVerb 
-    }        
-    If (!(Get-ItemProperty $NoWithList  NoOpenWith)) {
-        New-ItemProperty $NoWithList  NoOpenWith
-    }        
-    If (!(Get-ItemProperty $NoWithList  NoStaticDefaultVerb)) {
-        New-ItemProperty $NoWithList  NoStaticDefaultVerb 
+Write-Host "Stopping Edge from taking over as the default .PDF viewer" -ForegroundColor Cyan
+
+# Define registry paths
+$NoPDF      = "HKCR:\.pdf"
+$NoProgids  = "HKCR:\.pdf\OpenWithProgids"
+$NoWithList = "HKCR:\.pdf\OpenWithList"
+
+# Function to create a DWORD registry property if it doesn't exist
+function Ensure-RegistryProperty {
+    param(
+        [string]$Path,
+        [string]$Name,
+        [int]$Value = 1
+    )
+    try {
+        $prop = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+        if (-not $prop) {
+            New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWORD -Force -ErrorAction Stop | Out-Null
+            Write-Host "Created property '$Name' in $Path with value $Value" -ForegroundColor Green
+        }
+        else {
+            Write-Host "Property '$Name' already exists in $Path" -ForegroundColor Yellow
+        }
     }
-            
-    #Appends an underscore '_' to the Registry key for Edge
-    $Edge = "HKCR:\AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723_"
-    If (Test-Path $Edge) {
-        Set-Item $Edge AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723_ 
+    catch {
+        Write-Host "Error creating property '$Name' in $Path: $_" -ForegroundColor Red
     }
+}
+
+# Ensure the required properties exist in each registry key
+Ensure-RegistryProperty -Path $NoPDF -Name "NoOpenWith"
+Ensure-RegistryProperty -Path $NoPDF -Name "NoStaticDefaultVerb"
+
+Ensure-RegistryProperty -Path $NoProgids -Name "NoOpenWith"
+Ensure-RegistryProperty -Path $NoProgids -Name "NoStaticDefaultVerb"
+
+Ensure-RegistryProperty -Path $NoWithList -Name "NoOpenWith"
+Ensure-RegistryProperty -Path $NoWithList -Name "NoStaticDefaultVerb"
+
+# Rename the Edge registry key to append an underscore so that it doesn't claim PDFs
+$EdgeOriginal = "HKCR:\AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723"
+$EdgeNew      = "HKCR:\AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723_"
+
+if (Test-Path $EdgeOriginal) {
+    try {
+        Rename-Item -Path $EdgeOriginal -NewName (Split-Path $EdgeNew -Leaf) -Force -ErrorAction Stop
+        Write-Host "Renamed Edge key from '$EdgeOriginal' to '$EdgeNew'" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Error renaming Edge key: $_" -ForegroundColor Red
+    }
+}
+else {
+    Write-Host "Edge registry key '$EdgeOriginal' not found. It may have already been renamed." -ForegroundColor Yellow
+}
